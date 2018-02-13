@@ -1,62 +1,140 @@
+;;;;
+;; Packages
+;;;;
 
-(add-to-list 'load-path (expand-file-name "lisp" user-emacs-directory))
-(require 'init-benchmarking) ;; Measure startup time
-
-;; melpha config
+;; Define package repositories
 (require 'package)
-(let* ((no-ssl (and (memq system-type '(windows-nt ms-dos))
-		    (not (gnutls-available-p))))
-       (proto (if no-ssl "http" "https")))
-  ;; Comment/uncomment these two lines to enable/disable MELPA and MELPA Stable as desired
-  (add-to-list 'package-archives (cons "melpa" (concat proto "://melpa.org/packages/")) t)
-  ;;(add-to-list 'package-archives (cons "melpa-stable" (concat proto "://stable.melpa.org/packages/")) t)
-  (when (< emacs-major-version 24)
-    ;; For important compatibility libraries like cl-lib
-    (add-to-list 'package-archives '("gnu" . (concat proto "://elpa.gnu.org/packages/")))))
+(add-to-list 'package-archives
+             '("marmalade" . "http://marmalade-repo.org/packages/") t)
+(add-to-list 'package-archives
+             '("tromey" . "http://tromey.com/elpa/") t)
+(add-to-list 'package-archives
+             '("melpa" . "http://melpa.milkbox.net/packages/") t)
+
+;; (setq package-archives '(("gnu" . "http://elpa.gnu.org/packages/")
+;;                          ("marmalade" . "http://marmalade-repo.org/packages/")
+;;                          ("melpa" . "http://melpa-stable.milkbox.net/packages/")))
+
+
+;; Load and activate emacs packages. Do this first so that the
+;; packages are loaded before you start trying to modify them.
+;; This also sets the load path.
 (package-initialize)
 
-;; GO config start
+;; Download the ELPA archive description if needed.
+;; This informs Emacs about the latest versions of all packages, and
+;; makes them available for download.
+(when (not package-archive-contents)
+  (package-refresh-contents))
 
-(require 'go-mode)
+;; Define he following variables to remove the compile-log warnings
+;; when defining ido-ubiquitous
+(defvar ido-cur-item nil)
+(defvar ido-default-item nil)
+(defvar ido-cur-list nil)
+(defvar predicate nil)
+(defvar inherit-input-method nil)
 
-;; path for godoc
-(defun set-exec-path-from-shell-PATH ()
-  (let ((path-from-shell (replace-regexp-in-string
-			  "[ \t\n]*$"
-			  ""
-			  (shell-command-to-string "$SHELL --login -i -c 'echo $PATH'"))))
-    (setenv "PATH" path-from-shell)
-    (setq eshell-path-env path-from-shell) ; for eshell users
-    (setq exec-path (split-string path-from-shell path-separator))))
+;; The packages you want installed. You can also install these
+;; manually with M-x package-install
+;; Add in your own as you wish:
+(defvar my-packages
+  '(;; makes handling lisp expressions much, much easier
+    ;; Cheatsheet: http://www.emacswiki.org/emacs/PareditCheatsheet
+    paredit
 
-(when window-system (set-exec-path-from-shell-PATH))
+    ;; key bindings and code colorization for Clojure
+    ;; https://github.com/clojure-emacs/clojure-mode
+    clojure-mode
 
-;; Go path already set in dotfiles
-;; (setenv "GOPATH" "~/Workspace/gocode")
+    ;; extra syntax highlighting for clojure
+    clojure-mode-extra-font-locking
 
-;; autoformat on save using gofmt
-(add-to-list 'exec-path "/Users/tleyden/Development/gocode/bin")
-(add-hook 'before-save-hook 'gofmt-before-save)
+    ;; integration with a Clojure REPL
+    ;; https://github.com/clojure-emacs/cider
+    cider
 
-;; auto-complete
-(defun auto-complete-for-go ()
-  (auto-complete-mode 1))
-(add-hook 'go-mode-hook 'auto-complete-for-go)
+    ;; allow ido usage in as many contexts as possible. see
+    ;; customizations/navigation.el line 23 for a description
+    ;; of ido
+    ido-ubiquitous
+
+    ;; Enhances M-x to allow easier execution of commands. Provides
+    ;; a filterable list of possible commands in the minibuffer
+    ;; http://www.emacswiki.org/emacs/Smex
+    smex
+
+    ;; project navigation
+    projectile
+
+    ;; colorful parenthesis matching
+    rainbow-delimiters
+
+    ;; edit html tags like sexps
+    tagedit
+
+    ;; git integration
+    magit))
+
+;; On OS X, an Emacs instance started from the graphical user
+;; interface will have a different environment than a shell in a
+;; terminal window, because OS X does not run a shell during the
+;; login. Obviously this will lead to unexpected results when
+;; calling external utilities like make from Emacs.
+;; This library works around this problem by copying important
+;; environment variables from the user's shell.
+;; https://github.com/purcell/exec-path-from-shell
+(if (eq system-type 'darwin)
+    (add-to-list 'my-packages 'exec-path-from-shell))
+
+(dolist (p my-packages)
+  (when (not (package-installed-p p))
+    (package-install p)))
 
 
+;; Place downloaded elisp files in ~/.emacs.d/vendor. You'll then be able
+;; to load them.
+;;
+;; For example, if you download yaml-mode.el to ~/.emacs.d/vendor,
+;; then you can add the following code to this file:
+;;
+;; (require 'yaml-mode)
+;; (add-to-list 'auto-mode-alist '("\\.yml$" . yaml-mode))
+;; 
+;; Adding this code will make Emacs enter yaml mode whenever you open
+;; a .yml file
+(add-to-list 'load-path "~/.emacs.d/vendor")
 
-;; go config end
 
+;;;;
+;; Customization
+;;;;
 
-;; Load theme
+;; Add a directory to our load path so that when you `load` things
+;; below, Emacs knows where to look for the corresponding file.
+(add-to-list 'load-path "~/.emacs.d/customizations")
 
-(load-theme 'tsdh-dark)
+;; Sets up exec-path-from-shell so that Emacs will use the correct
+;; environment variables
+(load "shell-integration.el")
 
-;;  auto pair braces
-(electric-pair-mode 1)
+;; These customizations make it easier for you to navigate files,
+;; switch buffers, and choose options from the minibuffer.
+(load "navigation.el")
 
+;; These customizations change the way emacs looks and disable/enable
+;; some user interface elements
+(load "ui.el")
 
-;; slime config
-;; Set your lisp system and, optionally, some contribs
-(setq inferior-lisp-program "/usr/bin/sbcl")
-(setq slime-contribs '(slime-fancy))
+;; These customizations make editing a bit nicer.
+(load "editing.el")
+
+;; Hard-to-categorize customizations
+(load "misc.el")
+
+;; For editing lisps
+(load "elisp-editing.el")
+
+;; Langauage-specific
+(load "setup-clojure.el")
+(load "setup-js.el")
